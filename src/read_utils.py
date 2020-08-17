@@ -99,7 +99,31 @@ def academic_level_standardize(level):
     
     return 'Khác'
 
+def transform_to_job_fact(row): 
+    '''
+    Transform a row in job_description to a row of job_fact_table.
 
+    Parameters
+    ----------
+    row : Row
+
+    Returns
+    -------
+    time : Row
+
+    '''
+    
+    
+    time = row['timestampISODate'] 
+    province = row['working_location'] 
+    gender = row['required_gender_specific']
+    academic_level = row['job_level'] 
+    exp_years = row['job_experience_years'] 
+    attribute= row['job_attributes']
+    numbers_recruitment = row['job_number_available']
+    salary = row['salary'] 
+    
+    return time
 
 
 

@@ -25,8 +25,25 @@ def get_spark(appName = "Job description", master  = "local"):
     sc = SparkContext.getOrCreate(conf=conf) 
     sqlContext = SQLContext(sc) 
     spark = sqlContext.sparkSession
-    return sc, spark 
+    return sc, spark, sqlContext
 
+sc, spark, sqlContext = get_spark()
+url = 'jdbc:mysql://localhost:3306/'
+db_name = 'test_labor_market_analysis'
+user = 'quangkhanh'
+password = '12345678'
+
+def read_table(table_name, sqlContext=sqlContext, url=url, db_name=db_name,
+                           user=user, password=password): 
+    df = sqlContext.read.option('url', url + db_name) \
+                        .option('driver', 'com.mysql.jdbc.Driver') \
+                        .option('dbtable', table_name) \
+                        .option('user', user) \
+                        .option('password', password) \
+                        .format('jdbc') \
+                        .load() 
+    return df
+    
 def read_file(path, format = 'csv'): 
     df = spark.read.option('header', True)\
                 .option('sep', ',')\
@@ -50,12 +67,27 @@ def read_industry(df):
     industries = df.select('sectors').rdd
     industries = industries.flatMap(util.industries_to_set).distinct().collect()
     rdd = sc.parallelize(industries) 
-    industries_rdd = rdd.map(lambda x: Row(industry = x, description=''))
-    industries_df = spark.createDataFrame(industries_rdd) 
-    return industries_df.select('industry', 'description')
+    industries_rdd = rdd.map(lambda x: Row(name_industry = x, description=''))
+    industries_df = spark.createDataFrame(industries_rdd) \
+                            .withColumn("idIndustry", monotonically_increasing_id())
+    return industries_df.select('idIndustry', 'name_industry', 'description') 
 
 
 def read_job(df): 
+    '''
+    Read the job in title of job descriptions dataframe
+
+    Parameters
+    ----------
+    df : DataFrame
+        Job descriptions. 
+
+    Returns
+    -------
+    DataFrame
+        Dataframe with job, description and fact
+
+    '''
     def clean_job(title): 
         # clean job
         return title 
@@ -70,16 +102,35 @@ def read_time(df):
     time = df.select('timestampISODate').rdd \
                     .map(util.time_to_quarter).distinct().collect()
     rdd = sc.parallelize(time)
-    time_rdd = rdd.map(lambda x: Row(day= x[0], month=x[1], 
-                                     quarter=x[2], year=x[3]))
-    time_df = spark.createDataFrame(time_rdd) 
+    time_rdd = rdd.map(lambda x: Row(dayD= x[0], monthD=x[1], 
+                                     quarterD=x[2], yearD=x[3]))
+    time_df = spark.createDataFrame(time_rdd) \
+                    .withColumn("idTime", monotonically_increasing_id())
     return time_df
 
 
+def read_company(df): 
+    '''
+    Read company and location from df
 
+    Parameters
+    ----------
+    df : DataFrame
+        Job descriptions 
 
+    Returns
+    -------
+    DataFrame with company name and working location 
 
-if __name__ == '__main__': 
-    sc, spark = get_spark() 
-    df = read_file('data/job_description.csv')
+    '''
     
+    company = df.select('company_name', 'working_location') \
+                    .distinct().count()
+    return company
+
+# def read_market_fact(df):  
+    
+    
+if __name__ == '__main__': 
+    df = read_file('../data/job_description.csv')
+    read_time(df).show()
